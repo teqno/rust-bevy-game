@@ -15,6 +15,11 @@ pub struct RotateToPlayer {
 }
 
 #[derive(Component)]
+pub struct MoveForward {
+    pub movement_speed: f32,
+}
+
+#[derive(Component)]
 pub struct Enemy {
     pub collision_radius: f32,
 }
@@ -132,5 +137,20 @@ pub fn rotate_to_player_system(
 
         // rotate the enemy to face the player
         enemy_transform.rotate_z(rotation_angle);
+    }
+}
+
+
+pub fn move_forward_system(
+    mut query: Query<(&MoveForward, &mut Transform)>,
+) {
+    for (config, mut enemy_transform) in &mut query {
+        let movement_direction = enemy_transform.rotation * Vec3::Y;
+        // get the distance the ship will move based on direction, the ship's movement speed and delta time
+        let movement_distance = config.movement_speed * constants::TIME_STEP;
+        // create the change in translation using the new movement direction and distance
+        let translation_delta = movement_direction * movement_distance;
+        // rotate the enemy to face the player
+        enemy_transform.translation += translation_delta;
     }
 }

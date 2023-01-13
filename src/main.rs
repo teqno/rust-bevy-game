@@ -16,7 +16,8 @@ fn main() {
                 .label("control")
                 .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
                 .with_system(snap_to_player_system)
-                .with_system(rotate_to_player_system),
+                .with_system(rotate_to_player_system)
+                .with_system(move_forward_system)
         )
         .add_system(projectile_movement_system)
         .add_system(collision_system)

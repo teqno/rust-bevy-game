@@ -1,5 +1,5 @@
 use crate::constants;
-use crate::enemy::{Enemy, RotateToPlayer, SnapToPlayer};
+use crate::enemy::{Enemy, RotateToPlayer, SnapToPlayer, MoveForward};
 use bevy::prelude::*;
 /// Add the game's entities to our world and creates an orthographic camera for 2D rendering.
 ///
@@ -31,7 +31,10 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Enemy {
             collision_radius: 16.0,
         })
-        .insert(SnapToPlayer);
+        .insert(SnapToPlayer)
+        .insert(MoveForward {
+            movement_speed: 100.0
+        });
     commands
         .spawn_bundle(SpriteBundle {
             texture: enemy_a_handle,
@@ -41,7 +44,10 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(Enemy {
             collision_radius: 16.0,
         })
-        .insert(SnapToPlayer);
+        .insert(SnapToPlayer)
+        .insert(MoveForward {
+            movement_speed: 100.0
+        });
 
     // enemy that rotates to face the player enemy spawns on the top and right
     commands
@@ -55,7 +61,11 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(RotateToPlayer {
             rotation_speed: f32::to_radians(45.0), // degrees per second
+        })
+        .insert(MoveForward {
+            movement_speed: 200.0
         });
+
     commands
         .spawn_bundle(SpriteBundle {
             texture: enemy_b_handle,
@@ -67,5 +77,8 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(RotateToPlayer {
             rotation_speed: f32::to_radians(90.0), // degrees per second
+        })
+        .insert(MoveForward {
+            movement_speed: 200.0
         });
 }

@@ -1,10 +1,6 @@
 use crate::constants;
 use crate::projectile::Projectile;
 use bevy::{prelude::*, time::FixedTimestep};
-use std::{
-    io::{self, Write},
-    time::Instant,
-};
 
 pub struct PlayerPlugin;
 
@@ -20,6 +16,9 @@ impl Plugin for PlayerPlugin {
 
 fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
+
+    commands.spawn_bundle(Camera2dBundle::default());
+
     commands
         .spawn_bundle(SpriteBundle {
             texture: ship_handle,
@@ -101,17 +100,7 @@ fn player_movement_system(
     // create the change in translation using the new movement direction and distance
     let translation_delta = movement_direction * movement_distance;
 
-    let start = Instant::now();
-
     let mut camera_transform = camera_query.single_mut();
     camera_transform.translation += translation_delta;
     transform.translation += translation_delta;
-
-    let duration = start.elapsed();
-    print!("\x1B[2J");
-    println!("Time elapsed: {:?}", duration.as_nanos());
-    io::stdout().flush().unwrap();
-    // bound the ship within the invisible level bounds
-    // let extents = Vec3::from((constants::BOUNDS / 2.0, 0.0));
-    // transform.translation = transform.translation.min(extents).max(-extents);
 }

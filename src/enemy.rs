@@ -1,27 +1,52 @@
 use crate::constants;
 use crate::player::*;
 use crate::projectile::*;
+use bevy::time::FixedTimestep;
 use bevy::{math::Vec3Swizzles, prelude::*};
 
-/// snap to player ship behavior
+pub struct EnemyPlugin;
+
+impl Plugin for EnemyPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
+                .with_system(rotate_to_player_system)
+                .with_system(snap_to_player_system)
+                .with_system(move_forward_system)
+                .with_system(collision_system)
+                .with_system(spawn_enemies_system)
+        );
+    }
+}
+
+// snap to player ship behavior
 #[derive(Component)]
 pub struct SnapToPlayer;
 
-/// rotate to face player ship behavior
 #[derive(Component)]
-pub struct RotateToPlayer {
-    /// rotation speed in radians per second
-    pub rotation_speed: f32,
-}
+pub struct EnemyMovementSpeed(f32);
 
 #[derive(Component)]
-pub struct MoveForward {
-    pub movement_speed: f32,
-}
+pub struct EnemyRotationSpeed(f32);
 
 #[derive(Component)]
 pub struct Enemy {
     pub collision_radius: f32,
+}
+
+#[derive(Bundle)]
+struct EnemyABundle {
+    movement_speed: EnemyMovementSpeed,
+    rotation_speed: EnemyRotationSpeed,
+    _e: Enemy,
+}
+
+#[derive(Bundle)]
+struct EnemyBBundle {
+    movement_speed: EnemyMovementSpeed,
+    snap_to_player: SnapToPlayer,
+    _e: Enemy,
 }
 
 pub fn collision_system(
@@ -37,8 +62,8 @@ pub fn collision_system(
             if projectile_xy.distance(enemy_xy)
                 < projectile.collision_radius + enemy.collision_radius
             {
-                commands.entity(enemy_entity).despawn();
-                commands.entity(projectile_entity).despawn();
+                commands.entity(enemy_entity).despawn_recursive();
+                commands.entity(projectile_entity).despawn_recursive();
             }
         }
     }
@@ -88,14 +113,14 @@ pub fn snap_to_player_system(
 /// floating point precision loss, so it pays to clamp your dot product value before calling
 /// `acos`.
 pub fn rotate_to_player_system(
-    mut query: Query<(&RotateToPlayer, &mut Transform), Without<Player>>,
     player_query: Query<&Transform, With<Player>>,
+    mut new_query: Query<(&EnemyRotationSpeed, &mut Transform), Without<Player>>
 ) {
     let player_transform = player_query.single();
     // get the player translation in 2D
     let player_translation = player_transform.translation.xy();
 
-    for (config, mut enemy_transform) in &mut query {
+    for (rotation_speed, mut enemy_transform) in &mut new_query {
         // get the enemy ship forward vector in 2D (already unit length)
         let enemy_forward = (enemy_transform.rotation * Vec3::Y).xy();
 
@@ -133,7 +158,7 @@ pub fn rotate_to_player_system(
 
         // calculate angle of rotation with limit
         let rotation_angle =
-            rotation_sign * (config.rotation_speed * constants::TIME_STEP).min(max_angle);
+            rotation_sign * (rotation_speed.0 * constants::TIME_STEP).min(max_angle);
 
         // rotate the enemy to face the player
         enemy_transform.rotate_z(rotation_angle);
@@ -142,15 +167,48 @@ pub fn rotate_to_player_system(
 
 
 pub fn move_forward_system(
-    mut query: Query<(&MoveForward, &mut Transform)>,
+    mut new_query: Query<(&EnemyMovementSpeed, &mut Transform)>
 ) {
-    for (config, mut enemy_transform) in &mut query {
+    for (movement_speed, mut enemy_transform) in &mut new_query {
         let movement_direction = enemy_transform.rotation * Vec3::Y;
         // get the distance the ship will move based on direction, the ship's movement speed and delta time
-        let movement_distance = config.movement_speed * constants::TIME_STEP;
+        let movement_distance = movement_speed.0 * constants::TIME_STEP;
         // create the change in translation using the new movement direction and distance
         let translation_delta = movement_direction * movement_distance;
         // rotate the enemy to face the player
         enemy_transform.translation += translation_delta;
     }
+}
+
+pub fn spawn_enemies_system(
+   mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Time>
+   ) {
+    let time_in_seconds = time.time_since_startup().as_secs();
+    println!("{:?}", time_in_seconds);
+    if time.time_since_startup().as_secs() % 2 != 0 {
+        return;
+    }
+
+    let enemy_a_handle = asset_server.load("textures/simplespace/enemy_A.png");
+    let enemy_b_handle = asset_server.load("textures/simplespace/enemy_B.png");
+
+    commands.spawn_bundle(SpriteBundle {
+        texture: enemy_a_handle,
+        ..default()
+    })
+    .insert_bundle(EnemyABundle {
+        movement_speed: EnemyMovementSpeed(200.0),
+        rotation_speed: EnemyRotationSpeed(f32::to_radians(180.0)),
+        _e: Enemy { collision_radius: 32.0 }
+    });
+
+    commands.spawn_bundle(SpriteBundle {
+        texture: enemy_b_handle,
+        ..default()
+    })
+    .insert_bundle(EnemyBBundle {
+        movement_speed: EnemyMovementSpeed(200.0),
+        snap_to_player: SnapToPlayer,
+        _e: Enemy { collision_radius: 32.0 }
+    });
 }

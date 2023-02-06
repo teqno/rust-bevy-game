@@ -1,14 +1,19 @@
+use std::time::Duration;
+
 use crate::constants;
 use crate::player::*;
 use crate::projectile::*;
 use bevy::time::FixedTimestep;
 use bevy::{math::Vec3Swizzles, prelude::*};
+use rand::prelude::*;
 
 pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
+        app
+            .insert_resource(EnemySpawnConfig { timer: Timer::from_seconds(1.0, TimerMode::Repeating) })
+            .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
                 .with_system(rotate_to_player_system)
@@ -18,6 +23,11 @@ impl Plugin for EnemyPlugin {
                 .with_system(spawn_enemies_system)
         );
     }
+}
+
+#[derive(Resource)]
+pub struct EnemySpawnConfig {
+    timer: Timer,
 }
 
 // snap to player ship behavior
@@ -52,9 +62,13 @@ struct EnemyBBundle {
 pub fn collision_system(
     mut projectile_query: Query<(Entity, &Projectile, &Transform)>,
     mut enemy_query: Query<(Entity, &Enemy, &Transform)>,
+    mut player_fire_duration_query: Query<&mut PlayerFireDuration>,
     mut commands: Commands,
+    mut config: ResMut<EnemySpawnConfig>
 ) {
+    let mut player_fire_duration = player_fire_duration_query.single_mut();
     for (projectile_entity, projectile, projectile_transform) in &mut projectile_query {
+        let mut is_collided = false;
         for (enemy_entity, enemy, enemy_transform) in &mut enemy_query {
             let projectile_xy = projectile_transform.translation.xy();
             let enemy_xy = enemy_transform.translation.xy();
@@ -62,9 +76,18 @@ pub fn collision_system(
             if projectile_xy.distance(enemy_xy)
                 < projectile.collision_radius + enemy.collision_radius
             {
-                commands.entity(enemy_entity).despawn_recursive();
-                commands.entity(projectile_entity).despawn_recursive();
+                commands.entity(enemy_entity).despawn();
+                is_collided = true;
+                player_fire_duration.fire_speed += 0.1;
+                
+                let new_duration_result = Duration::try_from_secs_f32(config.timer.duration().as_secs_f32() * 0.9);
+                if let Ok(new_duration) = new_duration_result {
+                    config.timer.set_duration(new_duration);
+                }
             }
+        }
+        if is_collided {
+            commands.entity(projectile_entity).despawn();
         }
     }
 }
@@ -181,34 +204,57 @@ pub fn move_forward_system(
 }
 
 pub fn spawn_enemies_system(
-   mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Time>
+   mut commands: Commands, asset_server: Res<AssetServer>, time: Res<Time>, mut config: ResMut<EnemySpawnConfig>
    ) {
-    let time_in_seconds = time.time_since_startup().as_secs();
-    println!("{:?}", time_in_seconds);
-    if time.time_since_startup().as_secs() % 2 != 0 {
-        return;
+    if config.timer.finished() {
+        let mut rng = rand::thread_rng();
+        let rand_enemy_id = rng.gen_range(0..2);
+        // let x_min = 500.0;
+        // let x_max = 1000.0;
+        // let x_range = [-1000.0..-500.0, 500.0..1000.0];
+        // let y_range = [-1000.0..-500.0, 500.0..1000.0];
+        // let rand_enemy_spawn_location_x = x_range.choose(&mut rng).take().unwrap();
+        // let rand_enemy_spawn_location_x = x_range.choose(rng);
+        let rand_enemy_spawn_location_x = rng.gen_range(-1000.0..1000.0);
+        let rand_enemy_spawn_location_y = rng.gen_range(-1000.0..1000.0);
+
+        match rand_enemy_id {
+           0 => {
+               let enemy_a_handle = asset_server.load("textures/simplespace/enemy_A.png");
+               commands.spawn(SpriteBundle {
+                   texture: enemy_a_handle,
+                   transform: Transform {
+                       translation: Vec3 { x: rand_enemy_spawn_location_x, y: rand_enemy_spawn_location_y, z: 0.0 }, 
+                       ..default()
+                   },
+                   ..default()
+               })
+               .insert(EnemyABundle {
+                   movement_speed: EnemyMovementSpeed(200.0),
+                   rotation_speed: EnemyRotationSpeed(f32::to_radians(180.0)),
+                   _e: Enemy { collision_radius: 32.0 }
+               });
+           },
+           1 => {
+               let enemy_b_handle = asset_server.load("textures/simplespace/enemy_B.png");
+
+               commands.spawn(SpriteBundle {
+                   texture: enemy_b_handle,
+                   transform: Transform {
+                       translation: Vec3 { x: rand_enemy_spawn_location_x, y: rand_enemy_spawn_location_y, z: 0.0 }, 
+                       ..default()
+                   },
+                   ..default()
+               })
+               .insert(EnemyBBundle {
+                   movement_speed: EnemyMovementSpeed(200.0),
+                   snap_to_player: SnapToPlayer,
+                   _e: Enemy { collision_radius: 32.0 }
+               });
+           },
+           _ => println!("Error")
+        }
     }
 
-    let enemy_a_handle = asset_server.load("textures/simplespace/enemy_A.png");
-    let enemy_b_handle = asset_server.load("textures/simplespace/enemy_B.png");
-
-    commands.spawn_bundle(SpriteBundle {
-        texture: enemy_a_handle,
-        ..default()
-    })
-    .insert_bundle(EnemyABundle {
-        movement_speed: EnemyMovementSpeed(200.0),
-        rotation_speed: EnemyRotationSpeed(f32::to_radians(180.0)),
-        _e: Enemy { collision_radius: 32.0 }
-    });
-
-    commands.spawn_bundle(SpriteBundle {
-        texture: enemy_b_handle,
-        ..default()
-    })
-    .insert_bundle(EnemyBBundle {
-        movement_speed: EnemyMovementSpeed(200.0),
-        snap_to_player: SnapToPlayer,
-        _e: Enemy { collision_radius: 32.0 }
-    });
+    config.timer.tick(time.delta());
 }

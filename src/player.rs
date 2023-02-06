@@ -1,6 +1,6 @@
 use crate::constants;
 use crate::projectile::Projectile;
-use bevy::{prelude::*, time::FixedTimestep};
+use bevy::{prelude::*, time::{FixedTimestep, Stopwatch}};
 
 pub struct PlayerPlugin;
 
@@ -17,16 +17,17 @@ impl Plugin for PlayerPlugin {
 fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
 
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             texture: ship_handle,
             ..default()
         })
-        .insert_bundle(PlayerBundle {
+        .insert(PlayerBundle {
             movement_speed: PlayerMovementSpeed(500.0),
             rotation_speed: PlayerRotationSpeed(f32::to_radians(360.0)),
+            fire_speed: PlayerFireDuration { timer: Stopwatch::new(), fire_speed: 2.0 },
             _p: Player,
         });
 }
@@ -40,10 +41,17 @@ struct PlayerMovementSpeed(f32);
 #[derive(Component)]
 struct PlayerRotationSpeed(f32);
 
+#[derive(Component)]
+pub struct PlayerFireDuration {
+    timer: Stopwatch,
+    pub fire_speed: f32,
+}
+
 #[derive(Bundle)]
 struct PlayerBundle {
     movement_speed: PlayerMovementSpeed,
     rotation_speed: PlayerRotationSpeed,
+    fire_speed: PlayerFireDuration,
     _p: Player,
 }
 
@@ -52,12 +60,13 @@ fn player_movement_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut commands: Commands,
     mut player_query: Query<
-        (&PlayerMovementSpeed, &PlayerRotationSpeed, &mut Transform),
+        (&PlayerMovementSpeed, &PlayerRotationSpeed, &mut PlayerFireDuration, &mut Transform),
         (With<Player>, Without<Camera>),
     >,
     mut camera_query: Query<&mut Transform, With<Camera>>,
+    time: Res<Time>,
 ) {
-    let (ship_movement_speed, ship_rotation_speed, mut transform) = player_query.single_mut();
+    let (ship_movement_speed, ship_rotation_speed, mut ship_fire_duration, mut transform) = player_query.single_mut();
 
     let mut rotation_factor = 0.0;
     let mut movement_factor = 0.0;
@@ -75,20 +84,24 @@ fn player_movement_system(
     }
 
     if keyboard_input.pressed(KeyCode::Space) {
-        // fire projectile
-        let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
-        println!("Fire");
-        commands
-            .spawn_bundle(SpriteBundle {
-                texture: ship_handle,
-                transform: *transform,
-                ..default()
-            })
+        if ship_fire_duration.timer.elapsed_secs() > 1.0 / ship_fire_duration.fire_speed {
+            // fire projectile
+            let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
+            commands
+                .spawn(SpriteBundle {
+                    texture: ship_handle,
+                    transform: *transform,
+                    ..default()
+                })
             .insert(Projectile {
                 movement_speed: 1000.0,
                 collision_radius: 32.0,
             });
+            ship_fire_duration.timer.reset();
+        }
     }
+    
+    ship_fire_duration.timer.tick(time.delta());
 
     // update the ship rotation around the Z axis (perpendicular to the 2D plane of the screen)
     transform.rotate_z(rotation_factor * ship_rotation_speed.0 * constants::TIME_STEP);

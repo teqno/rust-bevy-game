@@ -14,13 +14,13 @@ impl Plugin for EnemyPlugin {
         app
             .insert_resource(EnemySpawnConfig { timer: Timer::from_seconds(1.0, TimerMode::Repeating) })
             .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
-                .with_system(rotate_to_player_system)
-                .with_system(snap_to_player_system)
-                .with_system(move_forward_system)
-                .with_system(collision_system)
-                .with_system(spawn_enemies_system)
+                SystemSet::new()
+                    .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
+                    .with_system(rotate_to_player_system)
+                    .with_system(snap_to_player_system)
+                    .with_system(move_forward_system)
+                    .with_system(collision_system)
+                    .with_system(spawn_enemies_system)
         );
     }
 }
@@ -209,14 +209,14 @@ pub fn spawn_enemies_system(
     if config.timer.finished() {
         let mut rng = rand::thread_rng();
         let rand_enemy_id = rng.gen_range(0..2);
-        // let x_min = 500.0;
-        // let x_max = 1000.0;
-        // let x_range = [-1000.0..-500.0, 500.0..1000.0];
-        // let y_range = [-1000.0..-500.0, 500.0..1000.0];
-        // let rand_enemy_spawn_location_x = x_range.choose(&mut rng).take().unwrap();
-        // let rand_enemy_spawn_location_x = x_range.choose(rng);
-        let rand_enemy_spawn_location_x = rng.gen_range(-1000.0..1000.0);
-        let rand_enemy_spawn_location_y = rng.gen_range(-1000.0..1000.0);
+        let distance_min = 500;
+        let distance_max = 1000;
+        let theta_range: Vec<f32> = (0..360).map(|x| x as f32).collect();
+        let distance_range: Vec<f32> = (distance_min..distance_max).map(|x| x as f32).collect();
+        let theta = *theta_range.choose(&mut rng).take().unwrap();
+        let distance = *distance_range.choose(&mut rng).take().unwrap();
+        let rand_enemy_spawn_location_x = theta.to_radians().sin() * distance;
+        let rand_enemy_spawn_location_y = theta.to_radians().cos() * distance;
 
         match rand_enemy_id {
            0 => {

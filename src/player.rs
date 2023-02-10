@@ -2,19 +2,25 @@ use crate::constants;
 use crate::projectile::Projectile;
 use bevy::{prelude::*, time::{FixedTimestep, Stopwatch}};
 
+#[derive(SystemLabel)]
+pub enum PlayerLabel {
+    Setup,
+}
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(player_setup).add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
-                .with_system(player_movement_system),
-        );
+        app.add_startup_system(player_setup)
+            .add_system_set(
+                SystemSet::new()
+                    .with_run_criteria(FixedTimestep::step(constants::TIME_STEP as f64))
+                    .with_system(player_movement_system),
+                );
     }
 }
 
-fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let ship_handle = asset_server.load("textures/simplespace/ship_C.png");
 
     commands.spawn(Camera2dBundle::default());
@@ -22,6 +28,13 @@ fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn(SpriteBundle {
             texture: ship_handle,
+            transform: Transform {
+                translation: Vec3 {
+                    z: 10.0,
+                    ..default()
+                },
+                ..default()
+            },
             ..default()
         })
         .insert(PlayerBundle {
@@ -36,7 +49,7 @@ fn player_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 pub struct Player;
 
 #[derive(Component)]
-struct PlayerMovementSpeed(f32);
+pub struct PlayerMovementSpeed(pub f32);
 
 #[derive(Component)]
 struct PlayerRotationSpeed(f32);
